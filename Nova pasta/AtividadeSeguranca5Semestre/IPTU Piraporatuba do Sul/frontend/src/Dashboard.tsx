@@ -5,24 +5,32 @@ import type { Comentario } from "./Tipos/Comentario";
 import type { Iptuu } from "./Tipos/Iptuu";
 
 function Dashboard() {
-  const user = JSON.parse(localStorage.getItem("user") || "{}");
+
+  const token = localStorage.getItem("token");
 
   const [menuAberto, setMenuAberto] = useState(false);
   const [iptu, setIptu] = useState<Iptuu | null>(null);
   const [comentarios, setComentarios] = useState<Comentario[]>([]);
   const [novoComentario, setNovoComentario] = useState("");
   const [tipoCodigo, setTipoCodigo] = useState("codigoDeBarras");
-  const [htmlRetorno, setHtmlRetorno] = useState("");
+  const [codigoImagem, setCodigoImagem] = useState("");
 
   useEffect(() => {
+
     const buscarDados = async () => {
       try {
 
         const response = await axios.get<{ iptu: Iptuu[] }>(
-          "http://localhost:3001/usuario/iptu-por-usuario?usuarioId=" + user.id
+          "http://localhost:3001/usuario/iptu-por-usuario",
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
         );
 
         setIptu(response.data.iptu[0]);
+
       } catch (error) {
         console.error("Erro ao buscar IPTU", error);
       }
@@ -30,54 +38,89 @@ function Dashboard() {
 
     const buscarComentarios = async () => {
       try {
+
         const response = await axios.get(
-          "http://localhost:3001/comentario"
+          "http://localhost:3001/comentario",
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
         );
 
         setComentarios(response.data);
+
       } catch (error) {
         console.error("Erro ao buscar comentários", error);
       }
     };
-    if (user?.id) {
+
+    if (token) {
       buscarDados();
       buscarComentarios();
     }
-  }, [user]);
+
+  }, [token]);
 
   const enviarComentario = async () => {
+
     if (!novoComentario.trim()) return;
 
     try {
-      await axios.post("http://localhost:3001/comentario", {
-        usuarioId: user.id,
-        texto: novoComentario,
-      });
 
-      // Atualiza lista após enviar
-      const response = await axios.get("http://localhost:3001/comentario");
+      await axios.post(
+        "http://localhost:3001/comentario",
+        {
+          texto: novoComentario,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      const response = await axios.get(
+        "http://localhost:3001/comentario",
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
       setComentarios(response.data);
-
       setNovoComentario("");
+
     } catch (error) {
       console.error("Erro ao enviar comentário", error);
     }
   };
+
   const buscarCodigo = async () => {
-    const response = await axios.get(
-      "http://localhost:3001/usuario/codigo-qr-ou-barra?tipo=" + tipoCodigo
-    );
+    try {
 
-    setHtmlRetorno(response.data);
+      const response = await axios.get(
+        "http://localhost:3001/usuario/codigo-qr-ou-barra?tipo=" + tipoCodigo,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      setCodigoImagem(response.data.codigo);
+
+    } catch (error) {
+      console.error("Erro ao gerar código", error);
+    }
   };
-
-  // dados fictícios de IPTU
-
 
   return (
     <div style={styles.container}>
+
       <header style={styles.header}>
-        <h2>Bem-vindo, {user.nome}</h2>
+        <h2>Dashboard</h2>
 
         <div style={{ position: "relative" }}>
           <button onClick={() => setMenuAberto(!menuAberto)}>
@@ -89,6 +132,7 @@ function Dashboard() {
               <button onClick={() => alert("Listar Munícipes")}>
                 Listar Munícipes
               </button>
+
               <button onClick={() => alert("Outra opção")}>
                 Outra opção
               </button>
@@ -99,10 +143,12 @@ function Dashboard() {
 
       <div style={styles.card}>
         <h3>IPTU</h3>
+
         {iptu && <p>Valor IPTU: {iptu.valor}</p>}
-        {/* <p>Status: {iptu && iptu.pago ? "Pago ✅" : "Em aberto ❌"}</p> */}
+
         <p>Status: {iptu?.valor}</p>
       </div>
+
       <select
         value={tipoCodigo}
         onChange={(e) => setTipoCodigo(e.target.value)}
@@ -114,16 +160,19 @@ function Dashboard() {
       <button onClick={buscarCodigo}>
         Gerar Código
       </button>
-      {htmlRetorno && (
-        <div
-          dangerouslySetInnerHTML={{
-            __html: htmlRetorno,
-          }}
-        />
+
+      {codigoImagem && (
+        <div>
+          <img src={codigoImagem} alt="Código gerado" />
+        </div>
       )}
+
       <div style={{ padding: "40px" }}>
+
         <h2>Lista de Comentários</h2>
+
         <div style={{ marginBottom: "20px" }}>
+
           <h3>Adicionar Comentário</h3>
 
           <textarea
@@ -141,25 +190,22 @@ function Dashboard() {
           <button onClick={enviarComentario}>
             Enviar Comentário
           </button>
+
         </div>
+
         <ul>
-          {comentarios.map((comentario, index) => (
-            <li key={index}>
-              <div
-                dangerouslySetInnerHTML={{
-                  __html: `
-                  <strong>Usuário:</strong> ${comentario.usuario_id}
-                  <br/>
-                  <strong>Mensagem:</strong> ${comentario.texto}
-                `,
-                }}
-              />
+          {comentarios.map((comentario) => (
+            <li key={comentario.id}>
+              <strong>Usuário:</strong> {comentario.usuario_id}
+              <br />
+              <strong>Mensagem:</strong> {comentario.texto}
             </li>
           ))}
         </ul>
-      </div>
-    </div>
 
+      </div>
+
+    </div>
   );
 }
 
